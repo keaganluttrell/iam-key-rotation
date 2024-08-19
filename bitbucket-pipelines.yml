@@ -1,0 +1,55 @@
+image: node:18
+
+definitions:
+  steps: 
+    - step: &install
+        name: Install Dependencies
+        script:
+          - cd lambda-function && npm ci && cd ..
+          - cd cdk && npm ci && cd ..
+        artifacts:
+          - cdk/**
+          - lambda-function/**
+    - step: &lint
+        name: Lint
+        script:
+          - cd lambda-function && npm run lint && cd ..
+    - step: &test
+        name: Test lambda-function
+        script:
+          - cd lambda-function && npm run test && cd ..
+pipelines:
+  branches:
+    x: # all branches, except master
+      - step: *install
+      - step: *lint
+      - step: *test
+      - step:
+          name: Diff
+          script:
+            - export AWS_ACCESS_KEY_ID=$BB_AWS_ACCESS_KEY
+            - export AWS_SECRET_ACCESS_KEY=$BB_AWS_SECRET_KEY
+            - export AWS_DEFAULT_REGION='us-east-2'
+            - npm install -g aws-cdk
+            - cd cdk
+            - npm run build
+            - cdk bootstrap
+            - cdk diff
+            - cd ..
+    xmaster:
+      - step: *install
+      - step: *lint
+      - step: *test
+      - step:
+          name: Deploy
+          script:
+            - export AWS_ACCESS_KEY_ID=$BB_AWS_ACCESS_KEY
+            - export AWS_SECRET_ACCESS_KEY=$BB_AWS_SECRET_KEY
+            - export AWS_DEFAULT_REGION='us-east-2'
+            - npm install -g aws-cdk
+            - cd cdk
+            - npm install
+            - npm run build
+            - cdk bootstrap
+            - cdk deploy --require-approval never
+            - cd ..
